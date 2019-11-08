@@ -1,3 +1,10 @@
+/**
+ * @author Tyler Hoang
+ * prog2.pl
+ * CSE116
+*/
+
+/* Imported Database */
 airport( atl, 'Atlanta         ', degmin(  33,39 ), degmin(  84,25 ) ).
 airport( bos, 'Boston-Logan    ', degmin(  42,22 ), degmin(  71, 2 ) ).
 airport( chi, 'Chicago         ', degmin(  42, 0 ), degmin(  87,53 ) ).
@@ -55,6 +62,7 @@ flight( lax, sjc, time( 19,30 ) ).
 flight( lax, sfo, time( 20, 0 ) ).
 flight( lax, sea, time( 22,30 ) ).
 
+/* distance predicate that calculates how long it would take for a flight from one airport to another, using haversine formula */
 distance( Degrees1, Minutes1, Degrees2, Minutes2, Degrees3, Minutes3, Degrees4, Minutes4, D) :-
 	Pi is pi/180,
 	Lat1 is Degrees1+(Minutes1/60),
@@ -73,30 +81,36 @@ distance( Degrees1, Minutes1, Degrees2, Minutes2, Degrees3, Minutes3, Degrees4, 
 	C is 2*atan2(sqrt(A), sqrt(1-A)),
 	D is C*3956.
 
+/* print_trip predicate that prints an action in the correct format */
 print_trip( (Action, Code, Name, time( Hour, Minute))) :-
    upcase_atom( Code, Upper_code),
    format( "~6s  ~3s  ~s~26|  ~`0t~d~30|:~`0t~d~33|", 
     	[Action, Upper_code, Name, Hour, Minute]),
    nl.
 
+/* compareTime predicate that checks to see if a flight in question takes place after the previous flight has landed */
 compareTime(time( Hour1,Minute1), time( Hour2,Minute2)) :-
-	(	Hour2 =:= Hour1
-	->	Minute2 >= Minute1
-	;	Hour2 > Hour1
+	TempMinute is Minute1+30,
+	NewHour is Hour1+floor(TempMinute/60),
+	NewMinute is TempMinute mod 60,
+	( 	Hour2 =:= NewHour 
+	-> 	Minute2 >= NewMinute 
+	; 	Hour2 > NewHour 
 	).
 
-test( TripA, TripB, HourQ, MinutesQ, FinalHour, FinalMinutes, OriginalHour, OriginalMinutes) :- 
-	flight( TripA, TripB, time( Hour, Minutes )),
-	compareTime( time( HourQ, MinutesQ ), time( Hour,Minutes )),
+/* test predicate that checks to see if a route exists between two airports */
+test( TripA, TripB, PrevHour, PrevMinutes, FinalHour, FinalMinutes, OriginalHour, OriginalMinutes) :- 
+	flight( TripA, TripB, time( Hour, Minutes )),	% check to see if a flight exists
+	compareTime( time( PrevHour, PrevMinutes ), time( Hour,Minutes )),	% check to see if flight takes place after previous flight has landed
 
-	OriginalHour is Hour,
+	OriginalHour is Hour,	% the original time of this flight is stored so that it can be added to the list and printed later
 	OriginalMinutes is Minutes,
 
 	airport(TripA, _, degmin(Degrees1, Minutes1), degmin(Degrees2, Minutes2) ),
 	airport(TripB, _, degmin(Degrees3, Minutes3), degmin(Degrees4, Minutes4) ),
 	distance( Degrees1, Minutes1, Degrees2, Minutes2, Degrees3, Minutes3, Degrees4, Minutes4, Distance),
-	Time is Distance/500,
-	Hour1 is floor(Time),
+	Time is Distance/500,	% planes fly at 500 mph
+	Hour1 is floor(Time),	% perform the time addition
 	Min is Time-Hour1,
 	Min1 is Min*60,
 	NewHour is Hour+Hour1,
@@ -104,24 +118,35 @@ test( TripA, TripB, HourQ, MinutesQ, FinalHour, FinalMinutes, OriginalHour, Orig
 	FinalHour is NewHour+floor(NewMinutes/60),
 	FinalMinutes is NewMinutes mod 60.
 
+/* print predicate that prints the list of flights created by flyHelper */
 print([]).
 print([H|T]) :- print_trip( H), print( T).
 
-append( [], X, X).
-append( [X | Y], Z, [X | W]) :- append( Y, Z, W).
-
+/** 
+ * fly predicate has only 2 constraints - the desired departure and the desired destination. flyHelper does everything else 
+ * (I think McDowell wants fly to only have 2 constraints) 
+ */
 fly( A, B) :-
 	flyHelper( A, B, 0, 0, _, _, []).
 
-flyHelper( TripA, TripB, Hour, Min, _, _, List) :- test(TripA, TripB, Hour, Min, EndHour, EndMin, OriginalHour, OriginalMinutes),
+/**
+ * flyHelper predicate that sees if there is a direct flight between A and B. If not, check to see if there is a flight between A and C, then C and B.
+ * This predicate is recursive and will add the valid flights to the list, creating a route between A and B.
+ */
+flyHelper( TripA, TripB, Hour, Min, _, _, List) :- 
+	TripA \= TripB,
+	test(TripA, TripB, Hour, Min, EndHour, EndMin, OriginalHour, OriginalMinutes),	% this is a direct flight
 	airport( TripA, Name, _, _),
 	airport( TripB, Name1, _, _),
 	append(List, [( depart, TripA, Name , time( OriginalHour, OriginalMinutes )), ( arrive, TripB, Name1, time( EndHour,EndMin ))], NewList),
 	print(NewList).
-flyHelper( TripA, TripB, Hour, Min, EndHour, EndMin, List) :- test(TripA, TripC, Hour, Min, EndHour, EndMin, OriginalHour, OriginalMinutes),
+flyHelper( TripA, TripB, Hour, Min, EndHour, EndMin, List) :- 
+	TripA \= TripB,
+	test(TripA, TripC, Hour, Min, EndHour, EndMin, OriginalHour, OriginalMinutes),	% this is not a direct flight
 	airport( TripA, Name, _, _),
 	airport( TripC, Name1, _, _),
 	append(List, [( depart, TripA, Name , time( OriginalHour, OriginalMinutes )), ( arrive, TripC, Name1, time( EndHour,EndMin ))], NewList),
-	flyHelper( TripC, TripB, EndHour, EndMin, _, _, NewList).
+	flyHelper( TripC, TripB, EndHour, EndMin, _, _, NewList).	% call flyHelper on C to B, keeping mind of the this flight's end time
+
 
 main :- read(A),read(B), fly( A, B).
