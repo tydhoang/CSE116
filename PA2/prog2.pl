@@ -73,7 +73,7 @@ distance( Degrees1, Minutes1, Degrees2, Minutes2, Degrees3, Minutes3, Degrees4, 
 	C is 2*atan2(sqrt(A), sqrt(1-A)),
 	D is C*3956.
 
-print_trip( Action, Code, Name, time( Hour, Minute)) :-
+print_trip( (Action, Code, Name, time( Hour, Minute))) :-
    upcase_atom( Code, Upper_code),
    format( "~6s  ~3s  ~s~26|  ~`0t~d~30|:~`0t~d~33|", 
     	[Action, Upper_code, Name, Hour, Minute]),
@@ -85,12 +85,15 @@ compareTime(time( Hour1,Minute1), time( Hour2,Minute2)) :-
 	;	Hour2 > Hour1
 	).
 
-test( TripA, TripB, HourQ, MinutesQ, FinalHour, FinalMinutes) :- 
+test( TripA, TripB, HourQ, MinutesQ, FinalHour, FinalMinutes, OriginalHour, OriginalMinutes) :- 
 	flight( TripA, TripB, time( Hour, Minutes )),
 	compareTime( time( HourQ, MinutesQ ), time( Hour,Minutes )),
 
-	airport(TripA, Name, degmin(Degrees1, Minutes1), degmin(Degrees2, Minutes2) ),
-	airport(TripB, Name1, degmin(Degrees3, Minutes3), degmin(Degrees4, Minutes4) ),
+	OriginalHour is Hour,
+	OriginalMinutes is Minutes,
+
+	airport(TripA, _, degmin(Degrees1, Minutes1), degmin(Degrees2, Minutes2) ),
+	airport(TripB, _, degmin(Degrees3, Minutes3), degmin(Degrees4, Minutes4) ),
 	distance( Degrees1, Minutes1, Degrees2, Minutes2, Degrees3, Minutes3, Degrees4, Minutes4, Distance),
 	Time is Distance/500,
 	Hour1 is floor(Time),
@@ -99,16 +102,26 @@ test( TripA, TripB, HourQ, MinutesQ, FinalHour, FinalMinutes) :-
 	NewHour is Hour+Hour1,
 	NewMinutes is round( Minutes+Min1),
 	FinalHour is NewHour+floor(NewMinutes/60),
-	FinalMinutes is NewMinutes mod 60,
-	
-	print_trip( depart, TripA, Name , time( Hour, Minutes )),
-	print_trip( arrive, TripB, Name1, time( FinalHour, FinalMinutes)).
+	FinalMinutes is NewMinutes mod 60.
+
+print([]).
+print([H|T]) :- print_trip( H), print( T).
+
+append( [], X, X).
+append( [X | Y], Z, [X | W]) :- append( Y, Z, W).
 
 fly( A, B) :-
-	flyHelper( A, B, 0, 0, _, _).
+	flyHelper( A, B, 0, 0, _, _, []).
 
-flyHelper( TripA, TripB, Hour, Min, _, _) :- test(TripA, TripB, Hour, Min, _, _).
-flyHelper( TripA, TripB, Hour, Min, EndHour, EndMin) :- test(TripA, TripC, Hour, Min, EndHour, EndMin),
-	flyHelper( TripC, TripB, EndHour, EndMin, _, _ ).
+flyHelper( TripA, TripB, Hour, Min, _, _, List) :- test(TripA, TripB, Hour, Min, EndHour, EndMin, OriginalHour, OriginalMinutes),
+	airport( TripA, Name, _, _),
+	airport( TripB, Name1, _, _),
+	append(List, [( depart, TripA, Name , time( OriginalHour, OriginalMinutes )), ( arrive, TripB, Name1, time( EndHour,EndMin ))], NewList),
+	print(NewList).
+flyHelper( TripA, TripB, Hour, Min, EndHour, EndMin, List) :- test(TripA, TripC, Hour, Min, EndHour, EndMin, OriginalHour, OriginalMinutes),
+	airport( TripA, Name, _, _),
+	airport( TripC, Name1, _, _),
+	append(List, [( depart, TripA, Name , time( OriginalHour, OriginalMinutes )), ( arrive, TripC, Name1, time( EndHour,EndMin ))], NewList),
+	flyHelper( TripC, TripB, EndHour, EndMin, _, _, NewList).
 
 main :- read(A),read(B), fly( A, B).
