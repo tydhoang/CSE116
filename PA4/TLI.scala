@@ -1,3 +1,9 @@
+/*
+* @author Tyler Hoang
+* CSE112
+* PA4 - TLI in Scala
+*/
+
 import scala.collection.mutable.Map
 import scala.io.Source
 
@@ -5,7 +11,7 @@ abstract class Expr
 case class Var(name: String) extends Expr
 case class Str(name: String) extends Expr
 case class Constant(num: Double) extends Expr
-case class Word(word: String) extends Expr
+case class Word(word: String) extends Expr // in case we want to print a String
 case class BinOp(operator: String, left: Expr, right: Expr) extends Expr
 
 abstract class Stmt
@@ -15,13 +21,11 @@ case class Input(variable: String) extends Stmt
 case class Print(exprList: List[Expr]) extends Stmt
 
 object TLI {
-  
     def parseExpr(exprLine: List[String], lineNumber:Double): Expr = {
-      
-      if(exprLine.length == 1) {
+      if(exprLine.length == 1) { // this will either be a number or a variable or a String
         var varOrConst: String = exprLine(0)
-        if(varOrConst.forall(_.isDigit)) {
-          return Constant(varOrConst.toInt)
+        if(varOrConst(0).isDigit) {
+          return Constant(varOrConst.toDouble)
         }
         else if(varOrConst(0) == '"') {
             return Word(varOrConst)
@@ -30,11 +34,11 @@ object TLI {
           return Var(varOrConst)
         }
       }
-      
+ 
       if(exprLine(1) == "+") {
         var e1Temp: List[String] = List(exprLine(0))
         var e2Temp: List[String] = List(exprLine(2))
-        var e1: Expr = parseExpr(e1Temp, lineNumber)
+        var e1: Expr = parseExpr(e1Temp, lineNumber) // recursively calls parseExpr to parse both sides of the expression
         var e2: Expr = parseExpr(e2Temp, lineNumber)
         return BinOp("Plus",e1,e2)
       }
@@ -109,7 +113,7 @@ object TLI {
         return BinOp("Equals",e1,e2)
       }
       else {
-        println("Syntax error on line " + (lineNumber.toInt+1))
+        println("Syntax error on line " + (lineNumber.toInt+1) + ".") // an illegal operation was found
         System.exit(1)
         return Str("Nothing")
       }
@@ -131,7 +135,7 @@ object TLI {
             symTab(name)
           } catch {
             case e: NoSuchElementException =>
-              println("Undefined variable " + name + " at line " + (lineNumber.toInt+1) + ".")
+              println("Undefined variable " + name + " at line " + (lineNumber.toInt+1) + ".") // an undefined variable was found
               System.exit(1)
               return 0
           }
@@ -142,8 +146,8 @@ object TLI {
     def parseStmt(keyword: String, exprs: List[List[String]], lineNumber:Double): Stmt = {
       if(keyword == "if") {
         var currentIfStatement:List[String] = exprs(0)
-        var expr: Expr = parseExpr(currentIfStatement.dropRight(2), lineNumber)
-        var label:String = currentIfStatement.last
+        var expr: Expr = parseExpr(currentIfStatement.dropRight(2), lineNumber) // extract the expression
+        var label:String = currentIfStatement.last // extract the label
         return If(expr, label)
       }
       else if(keyword == "let") {
@@ -155,8 +159,9 @@ object TLI {
         var parsedExprs = List[Expr]()
         for(expr <- exprs) {
           var parsedExpr:Expr = parseExpr(expr, lineNumber)
-          parsedExprs = (parsedExpr::parsedExprs.reverse).reverse
+          parsedExprs = parsedExpr::parsedExprs
         }
+        parsedExprs = parsedExprs.reverse // since we were only able to prepend
         return Print(parsedExprs)
       }
       else if(keyword == "input") {
@@ -165,7 +170,7 @@ object TLI {
         return Input(e2)
       }
       else {
-        println("Syntax error on line " + (lineNumber.toInt+1) + ".")
+        println("Syntax error on line " + (lineNumber.toInt+1) + ".") // an illegal keyword was found
         System.exit(1)
         return Input("Nothing")
       }
@@ -184,7 +189,7 @@ object TLI {
           for(expr <- exprList) {
             expr match {
               case Word(word:String) => {
-                var noQuotes:String = word.replace('"', ' ')
+                var noQuotes:String = word.replace('"', ' ') // remove quotes from Strings, no eval necessary
                 noQuotes = noQuotes.trim()
                 stringOutput = stringOutput + noQuotes + " "
               }
@@ -207,7 +212,7 @@ object TLI {
             }
             catch {
               case e: NoSuchElementException => {
-                println("Illegal goto " + label + " at line " + (progCounter+1) + ".")
+                println("Illegal goto " + label + " at line " + (progCounter+1) + ".") // undefined label found
                 System.exit(1)
               }
             }
@@ -223,7 +228,7 @@ object TLI {
             input = scala.io.StdIn.readDouble()
           } catch {
             case e: Exception => {
-              println("Illegal or missing input")
+              println("Illegal or missing input") // illegal user input
               System.exit(1)
             }
           }
@@ -234,49 +239,56 @@ object TLI {
       }
     }
 
-    def main(args: Array[String]) {
+    def main(args: Array[String]) = {
       var sList = List[Stmt]()
-      var symTable = Map[String, Double]()
+      val symTable = Map[String, Double]()
       val filename = args(0)
       var lineCounter: Double = 0
       
       for (line <- Source.fromFile(filename).getLines) {
-        if(line.trim().length > 0) {
-          var trimmedLine: String = line.trim()
-          var commaSplitArray: Array[String] = trimmedLine.split(",")
+        if(line.trim().length > 0) { // skip empty lines
+          var trimmedLine: String = line.trim() // remove leading and trailing whitespace
+          var commaSplitArray: Array[String] = trimmedLine.split(",") // if this is a print stmt, there may be commas
           var exprList = List[List[String]]()
           for(possiblePrintExprs <- commaSplitArray) {
-            var currentSpaceSplitExpr:Array[String] = possiblePrintExprs.trim().split("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1) //split by whitespace NOT including whitespace in quotes
+            var currentSpaceSplitExpr:Array[String] = possiblePrintExprs.trim().split("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1) // split by whitespace NOT including whitespace in quotes
             var currentTokenList = List[String]()
-            for(token <- currentSpaceSplitExpr) {
-              currentTokenList = (token::currentTokenList.reverse).reverse
+            for(token <- currentSpaceSplitExpr) { // convert this Array[String] to a List[String] so that it is mutable
+              currentTokenList = token::currentTokenList
             }
-            exprList = (currentTokenList::exprList.reverse).reverse
+            currentTokenList = currentTokenList.reverse // since we can only really prepend in scala - we must reverse this list
+            exprList = currentTokenList::exprList // add the tokenized expression to the expression list
           }
-          var firstStringListContainingKeyword:List[String] = exprList(0)
+          exprList = exprList.reverse // we must reverse since elements were prepended instead of appended
+          
+          var firstStringListContainingKeyword:List[String] = exprList(0) // the first tokenized string in exprList contains the keyword
           var label:String = ""
-          if(firstStringListContainingKeyword(0).contains(":")) {
-            label = firstStringListContainingKeyword.head // grab label
-            firstStringListContainingKeyword = firstStringListContainingKeyword.drop(1) // remove label
-            label = label.dropRight(1) // remove colon
+          if(firstStringListContainingKeyword(0).contains(":")) { // if the first string is a label
+            label = firstStringListContainingKeyword.head // grab the label
+            firstStringListContainingKeyword = firstStringListContainingKeyword.drop(1) // remove the label
+            label = label.dropRight(1) // remove the colon
           }
-          var keyWord = firstStringListContainingKeyword.head
-          firstStringListContainingKeyword = firstStringListContainingKeyword.drop(1) // remove keyword
-          exprList = exprList.drop(1)
-          exprList = firstStringListContainingKeyword::exprList
-          var stmt:Stmt = parseStmt(keyWord, exprList, lineCounter)
-          sList = (stmt::sList.reverse).reverse
+          var keyWord = firstStringListContainingKeyword.head // grab the keyword
+          firstStringListContainingKeyword = firstStringListContainingKeyword.drop(1) // remove the keyword
+          exprList = exprList.drop(1) // remove the original first string that has both the keyword and the first expression
+          exprList = firstStringListContainingKeyword::exprList // prepend the edited version that only has the first expression
+          
+          // exprList has now been successfully set up //
+          
+          var stmt:Stmt = parseStmt(keyWord, exprList, lineCounter) // parse the line to create a stmt
+          sList = stmt::sList // add the parsed stmt into sList
           if(label != "") {
-            symTable = symTable + (label -> lineCounter)
+            symTable.put(label, lineCounter) // if there was a label, add it to the symTable
           }
-          lineCounter = lineCounter + 1
+          lineCounter = lineCounter + 1 // update the lineCounter for error reporting
         }
       }
-      var progCounter: Int = 0
+      
+      var progCounter: Int = 0 // will be used when if statements are encountered
+      sList = sList.reverse // everything was prepended
       while(progCounter < sList.length) {
         var currentStmt:Stmt = sList(progCounter)
         progCounter = perform(currentStmt, symTable, progCounter)
-      }
-      
+      } 
     }
 }
