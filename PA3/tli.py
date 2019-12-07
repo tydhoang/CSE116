@@ -1,6 +1,11 @@
+# @author Tyler Hoang
+# prog3 - tli.py
+# CSE112
+
 #! /usr/bin/env python3
 import fileinput
 import sys
+import shlex
 
 # used to store a parsed TL expressions which are
 # constant numbers, constant strings, variable names, and binary expressions
@@ -17,19 +22,22 @@ class Expr :
             return "(" + str(self.op1) + " " + self.operator + " " + str(self.op2) + ")"
 
     # evaluate this expression given the environment of the symTable
-    def eval(self, symTable):
+    def eval(self, symTable, counter):
         var1 = self.op1
         var2 = self.op2
-
         if isinstance(var1, Expr):
-            var1 = var1.eval(symTable)
+            var1 = var1.eval(symTable, counter)
         if isinstance(var2, Expr):
-            var2 = var2.eval(symTable)
+            var2 = var2.eval(symTable, counter)
 
         if var1 in symTable:
             var1 = symTable[var1]
         if var2 in symTable:
             var2 = symTable[var2]
+        if isinstance(var1, str):
+            if var1[0].isalpha():
+                print("Undefined variable " + str(var1) + " at line " + str(counter + 1) + ".")
+                exit()
 
         evaluatedExpr = 0
         if self.operator == "Const":
@@ -58,8 +66,6 @@ class Expr :
             evaluatedExpr = int(float(var1) == float(var2))
         elif self.operator == "String":
             evaluatedExpr = var1
-        else:
-            return 0
         return evaluatedExpr
 
 # used to store a parsed TL statement
@@ -81,18 +87,20 @@ class Stmt :
     # perform/execute this statement given the environment of the symTable
     def perform(self, symTable, lineNum):
         if self.keyword == "Print":
+            stringOutput = ""
             for expr in self.exprs:
-                output = expr.eval(symTable)
-                print(output)
+                output = expr.eval(symTable, lineNum)
+                stringOutput = stringOutput + str(output) + " "
+            print(stringOutput.replace('"', ''))
             lineNum += 1
         if self.keyword == "Let":
             e = self.exprs
             evaluatedLeft = e.op1.op1
-            evaluatedRight = e.op2.eval(symTable)
+            evaluatedRight = e.op2.eval(symTable, lineNum)
             symTable[evaluatedLeft] = evaluatedRight
             lineNum += 1
         if self.keyword == "If":
-            res = self.exprs.eval(symTable)
+            res = self.exprs.eval(symTable, lineNum)
             if(res == 1):
                 lineNum = symTable[self.label]
             else:
@@ -103,7 +111,8 @@ class Stmt :
             lineNum += 1
         return lineNum
 
-def parseExpr(exprLine):
+#parseExpr method that recursively parses expressions based on all the possible operators
+def parseExpr(exprLine, counter):
     if len(exprLine) == 1:
         varOrConst = exprLine[0]
         if varOrConst.isalpha():
@@ -114,66 +123,73 @@ def parseExpr(exprLine):
             return Expr(exprLine[0], "String")
         
     elif(exprLine[1] == "+"):
-        e1 = parseExpr([exprLine[0]])
-        e2 = parseExpr([exprLine[2]])
+        e1 = parseExpr([exprLine[0]], counter)
+        e2 = parseExpr([exprLine[2]], counter)
         return Expr(e1, "Plus", e2)
     elif(exprLine[1] == "-"):
-        e1 = parseExpr([exprLine[0]])
-        e2 = parseExpr([exprLine[2]])
+        e1 = parseExpr([exprLine[0]], counter)
+        e2 = parseExpr([exprLine[2]], counter)
         return Expr(e1, "Minus", e2)
     elif(exprLine[1] == "*"):
-        e1 = parseExpr([exprLine[0]])
-        e2 = parseExpr([exprLine[2]])
+        e1 = parseExpr([exprLine[0]], counter)
+        e2 = parseExpr([exprLine[2]], counter)
         return Expr(e1, "Multiply", e2)
     elif(exprLine[1] == "/"):
-        e1 = parseExpr([exprLine[0]])
-        e2 = parseExpr([exprLine[2]])
+        e1 = parseExpr([exprLine[0]], counter)
+        e2 = parseExpr([exprLine[2]], counter)
         return Expr(e1, "Divide", e2)
     elif(exprLine[1] == "="):
-        e1 = parseExpr([exprLine[0]])
-        e2 = parseExpr(exprLine[2:])
+        e1 = parseExpr([exprLine[0]], counter)
+        e2 = parseExpr(exprLine[2:], counter)
         return Expr(e1, "Equals", e2)
     elif(exprLine[1] == "<"):
-        e1 = parseExpr([exprLine[0]])
-        e2 = parseExpr([exprLine[2]])
+        e1 = parseExpr([exprLine[0]], counter)
+        e2 = parseExpr([exprLine[2]], counter)
         return Expr(e1, "LessThan", e2)
     elif(exprLine[1] == ">"):
-        e1 = parseExpr([exprLine[0]])
-        e2 = parseExpr([exprLine[2]])
+        e1 = parseExpr([exprLine[0]], counter)
+        e2 = parseExpr([exprLine[2]], counter)
         return Expr(e1, "GreaterThan", e2)
     elif(exprLine[1] == "<="):
-        e1 = parseExpr([exprLine[0]])
-        e2 = parseExpr([exprLine[2]])
+        e1 = parseExpr([exprLine[0]], counter)
+        e2 = parseExpr([exprLine[2]], counter)
         return Expr(e1, "LessThanEqualTo", e2)
     elif(exprLine[1] == ">="):
-        e1 = parseExpr([exprLine[0]])
-        e2 = parseExpr([exprLine[2]])
+        e1 = parseExpr([exprLine[0]], counter)
+        e2 = parseExpr([exprLine[2]], counter)
         return Expr(e1, "GreaterThanEqualTo", e2)
     elif(exprLine[1] == "!="):
-        e1 = parseExpr([exprLine[0]])
-        e2 = parseExpr([exprLine[2]])
+        e1 = parseExpr([exprLine[0]], counter)
+        e2 = parseExpr([exprLine[2]], counter)
         return Expr(e1, "NotEqual", e2)
     elif(exprLine[1] == "=="):
-        e1 = parseExpr([exprLine[0]])
-        e2 = parseExpr([exprLine[2]])
+        e1 = parseExpr([exprLine[0]], counter)
+        e2 = parseExpr([exprLine[2]], counter)
         return Expr(e1, "IsEqual", e2)
+    else:
+        print("Syntax error on line " + str(counter + 1) + ".")
+        exit()
 
-def parseStmt(keyword, exprLine):
+#parseStmt method that parses each statement of the program by calling parseExpr on all the expressions
+def parseStmt(keyword, exprLine, counter):
     if(keyword == "let"):
-        return Stmt("Let", parseExpr(exprLine[0]))
+        return Stmt("Let", parseExpr(exprLine[0], counter))
     if(keyword == "print"):
         parsedExprs = []
         for expr in exprLine:
-            parsedExprs.append(parseExpr(expr))
+            parsedExprs.append(parseExpr(expr, counter))
         return Stmt("Print", parsedExprs)
     if(keyword == "if"):
         currentExprLine = exprLine[0]
         labelToGoTo = currentExprLine.pop(-1)
         currentExprLine.pop(-1)
         currentExpr = currentExprLine
-        return Stmt("If", parseExpr(currentExpr), labelToGoTo)
+        return Stmt("If", parseExpr(currentExpr, counter), labelToGoTo)
     if(keyword == "input"):
-        return Stmt("Input", parseExpr(exprLine[0]))
+        return Stmt("Input", parseExpr(exprLine[0], counter))
+    else:
+        print("Syntax error on line " + str(counter + 1) + ".")
+        exit()
 
 def main():
     sList = []
@@ -181,22 +197,25 @@ def main():
     inputFile = open(sys.argv[1])
     counter = 0
     for line in inputFile:
+        if not line.strip():
+            continue;
         line = line.strip()
-        exprList = line.split(' , ')
+        exprList = line.split(',') #split by comma
+        for e in exprList:
+            e.strip()
         tokens = []
         for e in exprList:
-            token = e.split(' ')
+            token = shlex.split(e, posix=False) #split the line by whitespace - but not the whitespace inside of quotes (strings)
             tokens.append(token)
         mainKeyword = tokens[0]
         label = ""
-        if ':' in mainKeyword[0]:
+        if ':' in mainKeyword[0]: #extract if there is a label
             label = mainKeyword.pop(0)
             label = label[:-1]
         keyword = mainKeyword[0]
         mainKeyword.pop(0)
         exprLine = tokens
-        #lastExpr = exprLine[-1]
-        stmt = parseStmt(keyword, exprLine)
+        stmt = parseStmt(keyword, exprLine, counter) #parse each statement
         sList.append(stmt)
         if label != "":
             symTable[label] = counter
@@ -205,7 +224,7 @@ def main():
     i = 0
     pc = 0
     while i < len(sList):
-        pc = sList[i].perform(symTable, pc)
+        pc = sList[i].perform(symTable, pc) #perform each parsed statement
         i = pc
 
 main()
